@@ -34,11 +34,15 @@ const postAppointmentToFirebase = async (req, res) => {
       email,
       meetingLink, // Added meetingLink field for online appointments
     } = req.body;
+    console.log(req.body);
+
+    // Set default value for meetingLink
+    const defaultMeetingLink = type === "Online" ? meetingLink : "N/A";
 
     // Construct appointment object
     const appointmentData = {
       hospital: type === "Physical" ? hospital : "N/A",
-      meetingLink: type === "Online" ? meetingLink : "N/A",
+      meetingLink: defaultMeetingLink,
       type,
       doctorId,
       doctorName,
@@ -121,45 +125,31 @@ const getDoctorAppointments = async (req, res) => {
 
 const getPatientAppointments = async (req, res) => {
   try {
-    const patientId = req.body.patientId; // Access patientId from request body
+    console.log(req.body);
+    // Extract patientId from req.body
+    const { patientId } = req.body;
 
-    // Check if patientId is defined
+    // Check if patientId is provided
     if (!patientId) {
       return res.status(400).json({ error: "Patient ID is required" });
     }
 
+    // Query appointments collection by patientId
     const appointmentsRef = collection(db, "appointment");
     const q = query(appointmentsRef, where("patientId", "==", patientId));
     const querySnapshot = await getDocs(q);
+
+    // Extract appointment data from query snapshot
     const appointments = [];
     querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      const rawDate = data.date;
-      const dateObject = rawDate ? new Date(rawDate.replace(" ", "T")) : null;
-
-      // Determine whether to use hospital or meetingLink based on appointment type
-      const location =
-        data.type === "Physical" ? data.hospital : data.meetingLink;
-
-      const appointment = new AppointmentModel(
-        location,
-        data.type,
-        data.fee,
-        data.doctorId,
-        data.doctorName,
-        data.department,
-        data.complain,
-        data.slot,
-        dateObject,
-        data.patientId,
-        data.slotId,
-        data.patientName,
-        data.profileImage
-      );
-
-      appointments.push({ ...appointment, id: doc.id });
+      appointments.push({
+        id: doc.id,
+        ...doc.data(),
+      });
     });
-    res.json(appointments);
+
+    // Send success response with appointment data
+    res.status(200).json({ appointments });
   } catch (error) {
     console.error("Error fetching appointments:", error);
     res
